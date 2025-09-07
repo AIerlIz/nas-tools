@@ -51,16 +51,6 @@
                       ></normal-card>
                   {% endif %}
                   <!-- 过滤条件 -->
-                  <div class="subheader mb-2 mt-2">促销</div>
-                  <div class="form-selectgroup form-selectgroup-pills">
-                    {% for filter_free in Item.filter.free %}
-                    <label class="form-selectgroup-item">
-                      <input type="checkbox" name="filter_free" value="{{ filter_free.value }}" class="form-selectgroup-input"
-                        onclick="filter_medias(this, '{{ Item.key }}')">
-                      <span class="form-selectgroup-label">{{ filter_free.name }}</span>
-                    </label>
-                    {% endfor %}
-                  </div>
                   {% if Item.filter.season %}
                   <div class="subheader mb-2 mt-2">季</div>
                   <div class="form-selectgroup form-selectgroup-pills">
@@ -112,6 +102,16 @@
                       <input type="checkbox" name="filter_releasegroup" value="{{ filter_releasegroup }}" class="form-selectgroup-input"
                         onclick="filter_medias(this, '{{ Item.key }}', true)">
                       <span class="form-selectgroup-label filter_releasegroup_span">{{ filter_releasegroup }}</span>
+                    </label>
+                    {% endfor %}
+                  </div>
+                  <div class="subheader mb-2 mt-2">促销</div>
+                  <div class="form-selectgroup form-selectgroup-pills">
+                    {% for filter_free in Item.filter.free %}
+                    <label class="form-selectgroup-item">
+                      <input type="checkbox" name="filter_free" value="{{ filter_free.value }}" class="form-selectgroup-input"
+                        onclick="filter_medias(this, '{{ Item.key }}')">
+                      <span class="form-selectgroup-label">{{ filter_free.name }}</span>
                     </label>
                     {% endfor %}
                   </div>
@@ -328,16 +328,6 @@
         <div class="row">
           <div class="col" id="search_results_filter_{{ Item.key }}_modal">
             <!-- 过滤条件 -->
-            <div class="subheader mb-2 mt-2">促销</div>
-            <div class="form-selectgroup form-selectgroup-pills">
-              {% for filter_free in Item.filter.free %}
-              <label class="form-selectgroup-item">
-                <input type="checkbox" name="filter_free" value="{{ filter_free.value }}" class="form-selectgroup-input"
-                  onclick="filter_medias(this, '{{ Item.key }}', true)">
-                <span class="form-selectgroup-label">{{ filter_free.name }}</span>
-              </label>
-              {% endfor %}
-            </div>
             {% if Item.filter.season %}
             <div class="subheader mb-2 mt-2">季</div>
             <div class="form-selectgroup form-selectgroup-pills">
@@ -389,6 +379,16 @@
                 <input type="checkbox" name="filter_releasegroup" value="{{ filter_releasegroup }}" class="form-selectgroup-input"
                   onclick="filter_medias(this, '{{ Item.key }}', true)">
                 <span class="form-selectgroup-label filter_releasegroup_span">{{ filter_releasegroup }}</span>
+              </label>
+              {% endfor %}
+            </div>
+            <div class="subheader mb-2 mt-2">促销</div>
+            <div class="form-selectgroup form-selectgroup-pills">
+              {% for filter_free in Item.filter.free %}
+              <label class="form-selectgroup-item">
+                <input type="checkbox" name="filter_free" value="{{ filter_free.value }}" class="form-selectgroup-input"
+                  onclick="filter_medias(this, '{{ Item.key }}', true)">
+                <span class="form-selectgroup-label">{{ filter_free.name }}</span>
               </label>
               {% endfor %}
             </div>
