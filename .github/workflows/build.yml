@@ -50,7 +50,7 @@ jobs:
         name: Build Image
         uses: docker/build-push-action@v4
         with:
-          context: docker
+          context: .
           file: docker/Dockerfile
           platforms: |
             linux/amd64
@@ -103,7 +103,7 @@ jobs:
         name: Build Image
         uses: docker/build-push-action@v4
         with:
-          context: docker
+          context: .
           file: docker/debian.Dockerfile
           platforms: |
             linux/amd64
