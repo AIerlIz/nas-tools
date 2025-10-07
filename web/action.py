@@ -656,24 +656,20 @@ class WebAction:
             # 查询站点
             site_info = Sites().get_sites(siteurl=url)
             if not site_info:
-                return {"code": -1, "msg": "根据链接地址未匹配到站点"}
-            # 下载种子文件，并读取信息
-            file_path, _, _, _, retmsg = Torrent().get_torrent_info(
-                url=url,
-                cookie=site_info.get("cookie"),
-                ua=site_info.get("ua"),
-                proxy=site_info.get("proxy")
-            )
-            if not file_path:
-                return {"code": -1, "msg": f"下载种子文件失败： {retmsg}"}
-            media_info = Media().get_media_info(title=os.path.basename(file_path))
+                # 尝试格式化链接，支持磁力
+                url = Torrent.format_enclosure(url)
+                if not url:
+                    return {"code": -1, "msg": "根据链接地址未匹配到站点"}
+            
+            media_info = Media().get_media_info(title=url)
             if media_info:
                 media_info.site = "WEB"
+                media_info.enclosure = url
+            
             # 添加下载
             Downloader().download(media_info=media_info,
                                   download_dir=dl_dir,
                                   download_setting=dl_setting,
-                                  torrent_file=file_path,
                                   in_from=SearchType.WEB,
                                   user_name=current_user.username)
 
