@@ -1,5 +1,6 @@
 import os.path
 import re
+import urllib.parse
 
 import log
 from app.downloader import Downloader
@@ -168,7 +169,6 @@ def search_medias_for_web(content, ident_flag=True, filters=None, tmdbid=None, m
                                         title=content)
         return 0, ""
 
-
 def search_media_by_message(input_str, in_from: SearchType, user_id, user_name=None):
     """
     输入字符串，解析要求并进行资源搜索
@@ -239,8 +239,8 @@ def search_media_by_message(input_str, in_from: SearchType, user_id, user_name=N
             # 订阅
             SEARCH_MEDIA_TYPE[user_id] = "SUBSCRIBE"
             input_str = re.sub(r"订阅[:：\s]*", "", input_str)
-        elif input_str.startswith("http"):
-            # 下载链接
+        elif input_str.startswith("http") or input_str.startswith("magnet:"):  
+            # 下载链接或磁力链接
             SEARCH_MEDIA_TYPE[user_id] = "DOWNLOAD"
         elif OpenAiHelper().get_state() \
                 and not input_str.startswith("搜索") \
@@ -254,36 +254,62 @@ def search_media_by_message(input_str, in_from: SearchType, user_id, user_name=N
 
         # 下载链接
         if SEARCH_MEDIA_TYPE[user_id] == "DOWNLOAD":
-            # 检查是不是有这个站点
-            site_info = Sites().get_sites(siteurl=input_str)
-            # 偿试下载种子文件
-            filepath, content, retmsg = Torrent().save_torrent_file(
-                url=input_str,
-                cookie=site_info.get("cookie"),
-                ua=site_info.get("ua"),
-                proxy=site_info.get("proxy")
-            )
-            # 下载种子出错
-            if (not content or not filepath) and retmsg:
-                Message().send_channel_msg(channel=in_from,
-                                           title=retmsg,
-                                           user_id=user_id)
-                return
-            # 识别文件名
-            filename = os.path.basename(filepath)
-            # 识别
-            meta_info = Media().get_media_info(title=filename)
-            if not meta_info:
-                Message().send_channel_msg(channel=in_from,
-                                           title="无法识别种子文件名！",
-                                           user_id=user_id)
-                return
-            # 开始下载
-            meta_info.set_torrent_info(enclosure=input_str)
-            Downloader().download(media_info=meta_info,
-                                  torrent_file=filepath,
-                                  in_from=in_from,
-                                  user_name=user_name)
+            # 磁力链接
+            if input_str.startswith("magnet:"):
+                # 解析磁力链接
+                parsed_url = urllib.parse.urlparse(input_str)
+                params = urllib.parse.parse_qs(parsed_url.query)
+                display_name = params.get('dn', [None])[0]
+                if not display_name:
+                    Message().send_channel_msg(channel=in_from,
+                                               title="磁力链接无法识别到名称！",
+                                               user_id=user_id)
+                    return
+                # 识别
+                meta_info = Media().get_media_info(title=display_name)
+                if not meta_info:
+                    Message().send_channel_msg(channel=in_from,
+                                               title="无法识别磁力链接名称！",
+                                               user_id=user_id)
+                    return
+                # 开始下载
+                meta_info.set_torrent_info(enclosure=input_str)
+                Downloader().download(media_info=meta_info,
+                                      torrent_file=None,
+                                      in_from=in_from,
+                                      user_name=user_name)
+            # 种子链接
+            else:
+                # 检查是不是有这个站点
+                site_info = Sites().get_sites(siteurl=input_str)
+                # 偿试下载种子文件
+                filepath, content, retmsg = Torrent().save_torrent_file(
+                    url=input_str,
+                    cookie=site_info.get("cookie"),
+                    ua=site_info.get("ua"),
+                    proxy=site_info.get("proxy")
+                )
+                # 下载种子出错
+                if (not content or not filepath) and retmsg:
+                    Message().send_channel_msg(channel=in_from,
+                                               title=retmsg,
+                                               user_id=user_id)
+                    return
+                # 识别文件名
+                filename = os.path.basename(filepath)
+                # 识别
+                meta_info = Media().get_media_info(title=filename)
+                if not meta_info:
+                    Message().send_channel_msg(channel=in_from,
+                                               title="无法识别种子文件名！",
+                                               user_id=user_id)
+                    return
+                # 开始下载
+                meta_info.set_torrent_info(enclosure=input_str)
+                Downloader().download(media_info=meta_info,
+                                      torrent_file=filepath,
+                                      in_from=in_from,
+                                      user_name=user_name)
         # 聊天
         elif SEARCH_MEDIA_TYPE[user_id] == "ASK":
             # 调用ChatGPT Api
