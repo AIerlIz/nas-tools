@@ -61,9 +61,9 @@ class MteamRssGen(_IPluginModule):
     # 插件版本
     module_version = "1.1"
     # 插件作者
-    module_author = "0xforee"
+    module_author = "AIerlIz"
     # 作者主页
-    author_url = "https://github.com/0xforee"
+    author_url = "https://github.com/AIerlIz"
     # 插件配置项ID前缀
     module_config_prefix = "mteam_rss_gen"
     # 加载顺序

@@ -29,6 +29,7 @@ RUN set -xe && \
     # Pip requirements
     pip install --upgrade pip setuptools wheel && \
     pip install cython && \
+    && pip install --no-build-isolation "fast-bencode==1.1.4" \
     pip install -r https://raw.githubusercontent.com/AIerlIz/nas-tools/master/requirements.txt && \
     # Clear
     apt-get remove -y build-essential && \

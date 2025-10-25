@@ -12,6 +12,7 @@ RUN apk add --no-cache --virtual .build-deps \
     && chmod +x /usr/bin/mc \
     && pip install --upgrade pip setuptools wheel \
     && pip install cython \
+    && pip install --no-build-isolation "fast-bencode==1.1.4" \
     && pip install -r https://raw.githubusercontent.com/AIerlIz/nas-tools/master/requirements.txt \
     && apk del --purge .build-deps \
     && rm -rf /tmp/* /root/.cache /var/cache/apk/*
