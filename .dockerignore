@@ -1,0 +1,19 @@
+# 构建上下文改为仓库根目录后，以下内容不应进入镜像
+# 版本控制 / CI / 工具元数据
+.git
+.github
+.workbuddy
+
+# 运行期产物（与 .gitignore 保持一致）
+config/user.db
+config/media.db
+config/tmdb.dat
+config/logs
+config/plugins
+config/temp
+
+# 构建产物与字节码
+package/build
+package/dist
+**/__pycache__
+*.pyc

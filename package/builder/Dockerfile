@@ -1,13 +1,12 @@
 FROM python:3.10.11-bullseye AS Builder
 
-ARG branch
-
 ENV NASTOOL_CONFIG=/nas-tools/config/config.yaml
 ENV py_site_packages=/usr/local/lib/python3.10/site-packages
 
 RUN python -m pip install --upgrade pip setuptools==67.7.2
 RUN pip install wheel cython pyinstaller==5.7.0
-RUN git clone --depth=1 -b ${branch} https://github.com/0xforee/nas-tools --recurse-submodule /nas-tools
+# 源码取自构建上下文（本仓库），不再 clone 上游仓库
+COPY . /nas-tools
 WORKDIR /nas-tools
 RUN pip install -r package/requirements.txt
 RUN pip install pyparsing

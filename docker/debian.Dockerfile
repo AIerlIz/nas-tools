@@ -1,10 +1,12 @@
 FROM python:3.10.11-slim-bullseye
 COPY --from=shinsenter/s6-overlay / /
+# 依赖清单取自本仓库，避免构建出上游的依赖集合
+COPY package_list_debian.txt requirements.txt /tmp/
 RUN set -xe && \
     export DEBIAN_FRONTEND="noninteractive" && \
     apt-get update -y && \
     apt-get install -y wget bash && \
-    apt-get install -y $(echo $(wget --no-check-certificate -qO- https://raw.githubusercontent.com/0xforee/nas-tools/master/package_list_debian.txt)) && \
+    apt-get install -y $(echo $(cat /tmp/package_list_debian.txt)) && \
     ln -sf /command/with-contenv /usr/bin/with-contenv && \
     # zone time
     ln -sf /usr/share/zoneinfo/${TZ} /etc/localtime && \
@@ -29,7 +31,7 @@ RUN set -xe && \
     # Pip requirements
     pip install --upgrade pip setuptools wheel && \
     pip install cython && \
-    pip install -r https://raw.githubusercontent.com/0xforee/nas-tools/master/requirements.txt && \
+    pip install -r /tmp/requirements.txt && \
     # Clear
     apt-get remove -y build-essential && \
     apt-get autoremove -y && \
@@ -51,7 +53,7 @@ ENV S6_SERVICES_GRACETIME=30000 \
     NASTOOL_AUTO_UPDATE=false \
     NASTOOL_CN_UPDATE=true \
     NASTOOL_VERSION=master \
-    REPO_URL="https://github.com/0xforee/nas-tools.git" \
+    REPO_URL="https://github.com/AIerlIz/nas-tools.git" \
     PYPI_MIRROR="https://pypi.tuna.tsinghua.edu.cn/simple" \
     PUID=0 \
     PGID=0 \
@@ -68,10 +70,10 @@ RUN set -xe \
     && echo 'fs.inotify.max_user_watches=5242880' >> /etc/sysctl.conf \
     && echo 'fs.inotify.max_user_instances=5242880' >> /etc/sysctl.conf \
     && echo "nt ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers \
-    && git config --global pull.ff only \
-    && git clone -b master ${REPO_URL} ${WORKDIR} --depth=1 --recurse-submodule \
-    && git config --global --add safe.directory ${WORKDIR}
-COPY --chmod=755 ./rootfs /
+    && git config --global pull.ff only
+# 源码直接取自构建上下文（即本仓库），不再 clone 上游仓库
+COPY . /nas-tools
+COPY --chmod=755 ./docker/rootfs /
 EXPOSE 3000
 VOLUME [ "/config" ]
 ENTRYPOINT [ "/init" ]

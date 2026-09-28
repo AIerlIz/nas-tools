@@ -50,7 +50,8 @@ jobs:
         name: Build Image
         uses: docker/build-push-action@v5
         with:
-          context: docker
+          # 上下文为仓库根目录：镜像里要装的是本仓库的源码与 requirements，而不是上游的
+          context: .
           file: docker/Dockerfile
           platforms: |
             linux/amd64
@@ -103,7 +104,8 @@ jobs:
         name: Build Image
         uses: docker/build-push-action@v5
         with:
-          context: docker
+          # 上下文为仓库根目录：镜像里要装的是本仓库的源码与 requirements，而不是上游的
+          context: .
           file: docker/debian.Dockerfile
           platforms: |
             linux/amd64
