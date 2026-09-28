@@ -11,6 +11,15 @@
 .vscode/
 Dockerfile-dev
 config/sites.json
+# 运行期产物：首次启动及使用过程中生成，含数据库与本机数据，不入库
+config/user.db
+config/media.db
+config/tmdb.dat
+config/logs/
+config/plugins/
+config/temp/
+# 工具本地数据（项目记忆、临时脚本等）
+/.workbuddy/
 nastools_test.py
 /node_modules/**
 package-lock.json
