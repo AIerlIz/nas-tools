@@ -4,6 +4,11 @@
 .github
 .workbuddy
 
+# 注意：config/config.yaml 有意【不】列在这里 —— Docker 镜像与 PyInstaller 产物都
+# 需要它作为首次启动的配置模板。前置条件是它必须始终是模板：本地开发请用仓库外的
+# NASTOOL_CONFIG 启动（写入会落在仓库外那份），否则它会被填入真实 api_key / 密码哈希
+# 并随产物一起发布。
+
 # 运行期产物（与 .gitignore 保持一致）
 config/user.db
 config/media.db
