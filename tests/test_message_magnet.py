@@ -68,6 +68,7 @@ class Drive:
 
     def __init__(self):
         self.messages = []           # 发给用户的消息标题
+        self.msg_calls = []          # send_channel_msg 的完整入参（含 image / url）
         self.searched_keywords = []  # 传给媒体识别器的关键字
         self.download_calls = []     # 下载器收到的参数
         self.branch = None           # 被判定的入口分支
@@ -76,18 +77,22 @@ class Drive:
         self.ident_calls = 0         # 媒体识别调用次数
 
 
-def drive(input_str, user_id, openai_on=False, media_info=None):
+def drive(input_str, user_id, openai_on=False, media_info=None, tmdb_info=None):
     """
     用 stub 驱动真实的 search_media_by_message。
     media_info 传 None 表示 Media().get_media_info() 返回 None（识别失败）。
+    tmdb_info 模拟 TMDB 是否命中：命中传非空 dict，未命中传 {}（真实实现里
+    tmdb_info 是类属性默认 {}，set_tmdb_info(None) 会直接 return）。
     """
     r = Drive()
+    if media_info is not None:
+        media_info.tmdb_info = {} if tmdb_info is None else tmdb_info
 
     message = mock.MagicMock()
     message.send_channel_msg.side_effect = (
-        lambda **kw: r.messages.append(kw.get("title", "")))
+        lambda **kw: (r.msg_calls.append(kw), r.messages.append(kw.get("title", ""))))
     message.send_channel_list_msg.side_effect = (
-        lambda **kw: r.messages.append(kw.get("title", "")))
+        lambda **kw: (r.msg_calls.append(kw), r.messages.append(kw.get("title", ""))))
 
     downloader = mock.MagicMock()
     downloader.download.side_effect = lambda **kw: r.download_calls.append(kw)
@@ -216,7 +221,70 @@ class MagnetFailureTest(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
-# ④ 原有 http 种子链接路径保持不变
+# ④ 下载前回给用户的媒体信息（简介 / 海报 / TMDB 详情链接）
+# ---------------------------------------------------------------------------
+
+class MediaInfoMessageTest(unittest.TestCase):
+    """
+    下载器自己发的通知只有标题、评分与下载参数，没有简介/海报/详情链接。
+    这里钉住：识别到 TMDB 信息时补发一条媒体信息，没命中时不发空壳消息。
+    """
+
+    TMDB_HIT = {"id": 12345, "title": "某电影"}
+
+    def _media_info(self, tmdb_info):
+        info = mock.MagicMock()
+        info.tmdb_info = tmdb_info
+        return info
+
+    def test_magnet_with_tmdb_sends_media_info(self):
+        info = self._media_info(self.TMDB_HIT)
+        r = drive(MAGNET_WITH_DN, "m-info-1", media_info=info,
+                  tmdb_info=self.TMDB_HIT)
+        self.assertEqual(len(r.msg_calls), 1)
+        call = r.msg_calls[0]
+        # 媒体信息四件套：标题带评分、简介、海报、详情链接
+        self.assertEqual(call["title"], info.get_title_vote_string.return_value)
+        self.assertEqual(call["text"], info.get_overview_string.return_value)
+        self.assertEqual(call["image"], info.get_message_image.return_value)
+        self.assertEqual(call["url"], info.get_detail_url.return_value)
+        self.assertEqual(call["user_id"], "m-info-1")
+        # 下载仍然照常进行
+        self.assertEqual(len(r.download_calls), 1)
+
+    def test_magnet_without_tmdb_sends_nothing(self):
+        """TMDB 没命中时不发空壳消息，但下载照常"""
+        r = drive(MAGNET_WITH_DN, "m-info-2", media_info=self._media_info({}),
+                  tmdb_info={})
+        self.assertEqual(r.msg_calls, [])
+        self.assertEqual(len(r.download_calls), 1)
+
+    def test_http_with_tmdb_sends_media_info(self):
+        info = self._media_info(self.TMDB_HIT)
+        r = drive(HTTP_TORRENT, "m-info-3", media_info=info, tmdb_info=self.TMDB_HIT)
+        self.assertEqual(len(r.msg_calls), 1)
+        self.assertEqual(r.msg_calls[0]["url"], info.get_detail_url.return_value)
+        self.assertEqual(len(r.download_calls), 1)
+        self.assertEqual(r.download_calls[0]["torrent_file"], TORRENT_PATH)
+
+    def test_http_without_tmdb_sends_nothing(self):
+        r = drive(HTTP_TORRENT, "m-info-4", media_info=self._media_info({}),
+                  tmdb_info={})
+        self.assertEqual(r.msg_calls, [])
+        self.assertEqual(len(r.download_calls), 1)
+
+    def test_rollback_control_media_info_was_never_sent(self):
+        """回滚对照：修复前下载路径一条媒体信息都不发"""
+        for link, uid in ((MAGNET_WITH_DN, "m-info-ctl-1"), (HTTP_TORRENT, "m-info-ctl-2")):
+            with self.subTest(link=link[:12]):
+                info = self._media_info(self.TMDB_HIT)
+                r = drive(link, uid, media_info=info, tmdb_info=self.TMDB_HIT)
+                self.assertEqual(len(r.msg_calls), 1)      # 现在：发
+                self.assertNotEqual(len(r.msg_calls), 0)   # 旧实现：0 条
+
+
+# ---------------------------------------------------------------------------
+# ⑤ 原有 http 种子链接路径保持不变
 # ---------------------------------------------------------------------------
 
 class HttpTorrentPathUnchangedTest(unittest.TestCase):

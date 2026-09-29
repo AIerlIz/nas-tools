@@ -13,6 +13,7 @@ from tests.test_message_magnet import (  # noqa: E402
     MagnetDownloadTest,
     MagnetFailureTest,
     MagnetRoutingTest,
+    MediaInfoMessageTest,
 )
 from tests.test_metainfo import MetaInfoTest  # noqa: E402
 from tests.test_qbittorrent_compat import (  # noqa: E402
@@ -45,6 +46,7 @@ if __name__ == '__main__':
     for test_case in (MagnetRoutingTest,
                       MagnetDownloadTest,
                       MagnetFailureTest,
+                      MediaInfoMessageTest,
                       HttpTorrentPathUnchangedTest):
         suite.addTest(loader.loadTestsFromTestCase(test_case))
 
