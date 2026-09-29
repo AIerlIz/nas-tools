@@ -8,6 +8,12 @@ os.environ.setdefault("NASTOOL_CONFIG", os.path.join(_REPO_ROOT, "config", "conf
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
+from tests.test_message_magnet import (  # noqa: E402
+    HttpTorrentPathUnchangedTest,
+    MagnetDownloadTest,
+    MagnetFailureTest,
+    MagnetRoutingTest,
+)
 from tests.test_metainfo import MetaInfoTest  # noqa: E402
 from tests.test_qbittorrent_compat import (  # noqa: E402
     AddTorrentResponseTest,
@@ -33,6 +39,13 @@ if __name__ == '__main__':
                       PausedStatesTest,
                       TagLifecycleTest,
                       DownloadResultJudgeTest):
+        suite.addTest(loader.loadTestsFromTestCase(test_case))
+
+    # IM 渠道接收磁力链接的回归用例（磁链曾被当成搜索关键字，报「查询不到媒体信息！」）
+    for test_case in (MagnetRoutingTest,
+                      MagnetDownloadTest,
+                      MagnetFailureTest,
+                      HttpTorrentPathUnchangedTest):
         suite.addTest(loader.loadTestsFromTestCase(test_case))
 
     # 运行测试

@@ -1,6 +1,7 @@
 name: NAStool Tests
 
-# 只跑 qBittorrent 兼容性回归用例（tests/test_qbittorrent_compat.py）。
+# 跑回归用例：qBittorrent 兼容性（tests/test_qbittorrent_compat.py）
+# 与 IM 渠道磁力链接（tests/test_message_magnet.py）。
 #
 # 与 build-package.yml / build.yml 不同，这里不受 `paths: [version.py]` 限制：
 # 那两份 workflow 只在版本号变化时构建，改代码/改测试都不会触发，无法充当
@@ -18,9 +19,9 @@ on:
   workflow_dispatch:
 
 jobs:
-  qbittorrent-compat:
+  regression:
     runs-on: ubuntu-latest
-    name: qBittorrent compatibility tests
+    name: Regression tests
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -50,4 +51,4 @@ jobs:
           # 被测模块在 import 期会读取配置，指向仓库内的模板即可（只读，不会改写它）
           NASTOOL_CONFIG: ${{ github.workspace }}/config/config.yaml
         run: |
-          python -m unittest tests.test_qbittorrent_compat -v
+          python -m unittest tests.test_qbittorrent_compat tests.test_message_magnet -v
