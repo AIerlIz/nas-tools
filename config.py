@@ -7,6 +7,11 @@ import re
 
 # 种子名/文件名要素分隔字符
 SPLIT_CHARS = r"\.|\s+|\(|\)|\[|]|-|\+|【|】|/|～|;|&|\||#|_|「|」|~"
+# 自研解析器（MetaVideo v1）分词专用：比 SPLIT_CHARS 少一个 "+"，
+# 否则 "DD+7.1" / "HDR10+" 里的加号会在分词阶段就被切掉，音频编码与
+# HDR 效果只能识别成 DD / HDR10（对齐 MoviePilot v3 的分隔符集合）。
+# 仅 v1 使用；v2(guessit) 与集号格式化继续用 SPLIT_CHARS，保持原行为。
+SPLIT_CHARS_TOKENS = r"\.|\s+|\(|\)|\[|]|-|【|】|/|～|;|&|\||#|_|「|」|~"
 # 默认User-Agent
 DEFAULT_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.102 Safari/537.36"
 # 收藏了的媒体的目录名，名字可以改，在Emby中点击红星则会自动将电影转移到此分类下，需要在Emby Webhook中配置用户行为通知

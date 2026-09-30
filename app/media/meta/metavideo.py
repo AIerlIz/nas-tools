@@ -1,7 +1,7 @@
 import os
 import re
 
-from config import RMT_MEDIAEXT
+from config import RMT_MEDIAEXT, SPLIT_CHARS_TOKENS
 from app.media.meta._base import MetaBase
 from app.utils import StringUtils
 from app.utils.tokens import Tokens
@@ -31,7 +31,12 @@ class MetaVideo(MetaBase):
     _source_re = r"^BLURAY$|^HDTV$|^UHDTV$|^HDDVD$|^WEBRIP$|^DVDRIP$|^BDRIP$|^BLU$|^WEB$|^BD$|^HDRip$"
     _effect_re = r"^REMUX$|^UHD$|^SDR$|^HDR\d*$|^DOLBY$|^DOVI$|^DV$|^3D$|^REPACK$"
     _resources_type_re = r"%s|%s" % (_source_re, _effect_re)
-    _name_no_begin_re = r"^\[.+?]"
+    # 支持 [] 与 【】：此前只认 []，导致 【字幕组】 开头的标记不会被剥离
+    _name_no_begin_re = r"^[\[【].+?[\]】]"
+    # 括号内是否像「点分英文资源名 + 年份」
+    _bracket_dot_title_re = r"[A-Za-z]+\..+(?:19|20)\d{2}"
+    # 括号内是否含分辨率/资源类型标记
+    _bracket_resource_re = r"(?:2160|1080|720|480)[PIpi]|4K|UHD|Blu[\-.]?ray|REMUX|WEB[\-.]?DL|HDTV"
     _name_no_chinese_re = r".*版|.*字幕"
     _name_se_words = ['共', '第', '季', '集', '话', '話', '期']
     _name_nostring_re = r"^PTS|^JADE|^AOD|^CHC|^[A-Z]{1,4}TV[\-0-9UVHDK]*" \
@@ -48,7 +53,9 @@ class MetaVideo(MetaBase):
     _resources_pix_re = r"^[SBUHD]*(\d{3,4}[PI]+)|\d{3,4}X(\d{3,4})"
     _resources_pix_re2 = r"(^[248]+K)"
     _video_encode_re = r"^[HX]26[45]$|^AVC$|^HEVC$|^VC\d?$|^MPEG\d?$|^Xvid$|^DivX$|^HDR\d*$"
-    _audio_encode_re = r"^DTS\d?$|^DTSHD$|^DTSHDMA$|^Atmos$|^TrueHD\d?$|^AC3$|^\dAudios?$|^DDP\d?$|^DD\d?$|^LPCM\d?$|^AAC\d?$|^FLAC\d?$|^HD\d?$|^MA\d?$"
+    # DD+ 必须排在 DD 之前：DD+7.1 里的 "+" 不是数字，靠 ^DD\d?$ 匹配不到，
+    # 会被当成 DD（实测与 MoviePilot v3 的差异项）
+    _audio_encode_re = r"^DTS\d?$|^DTSHD$|^DTSHDMA$|^Atmos$|^TrueHD\d?$|^AC3$|^\dAudios?$|^DDP\d?$|^DD\+\d?$|^DD\d?$|^LPCM\d?$|^AAC\d?$|^FLAC\d?$|^HD\d?$|^MA\d?$"
 
     def __init__(self,
                  title,
@@ -81,16 +88,32 @@ class MetaVideo(MetaBase):
             self.begin_episode = int(os.path.splitext(title)[0])
             self.type = MediaType.TV
             return
-        # 去掉名称中第1个[]的内容
-        title = re.sub(r'%s' % self._name_no_begin_re, "", title, count=1)
+        # 全名为 "Season xx" / "Sxx" 直接返回：这类目录名/种子名只表达季，
+        # 走词元循环会被名称识别先消费掉 Season，导致季丢失、类型判成电影
+        season_full_res = re.match(r"^(?:Season\s+|S)(\d{1,3})$", title, re.IGNORECASE)
+        if season_full_res:
+            self.type = MediaType.TV
+            self.begin_season = int(season_full_res.group(1))
+            self.total_seasons = 1
+            return
+        # 去掉名称中第1个[]的内容：若括号内本身像完整资源名（点分英文名 + 年份 + 资源类型），
+        # 说明它是标题正文而不是字幕组标记，保留内容只去掉括号（对齐 MoviePilot v3）
+        _first_bracket = re.match(r'%s' % self._name_no_begin_re, title)
+        if _first_bracket:
+            _bracket_content = title[:_first_bracket.end()]
+            if re.search(r'%s' % self._bracket_dot_title_re, _bracket_content) \
+                    and re.search(r'%s' % self._bracket_resource_re, _bracket_content):
+                title = _bracket_content[1:-1] + title[_first_bracket.end():]
+            else:
+                title = title[_first_bracket.end():]
         # 把xxxx-xxxx年份换成前一个年份，常出现在季集上
         title = re.sub(r'([\s.]+)(\d{4})-(\d{4})', r'\1\2', title)
         # 把大小去掉
         title = re.sub(r'[0-9.]+\s*[MGT]i?B(?![A-Z]+)', "", title, flags=re.IGNORECASE)
         # 把年月日去掉
         title = re.sub(r'\d{4}[\s._-]\d{1,2}[\s._-]\d{1,2}', "", title)
-        # 拆分tokens
-        tokens = Tokens(title)
+        # 拆分tokens（用不含 "+" 的分隔符，保住 DD+ / HDR10+ 这类标记）
+        tokens = Tokens(title, split_chars=SPLIT_CHARS_TOKENS)
         self.tokens = tokens
         # 解析名称、年份、季、集、资源类型、分辨率等
         token = tokens.get_next()

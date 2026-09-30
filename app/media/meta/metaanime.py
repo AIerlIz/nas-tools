@@ -48,8 +48,6 @@ class MetaAnime(MetaBase):
             if anitopy_info:
                 # 名称
                 name = anitopy_info.get("anime_title")
-                if name and name.find("/") != -1:
-                    name = name.split("/")[-1].strip()
                 if not name or name in self._anime_no_words or (len(name) < 5 and not StringUtils.is_chinese(name)):
                     # 普遍上第一个非字幕组的 `[]` 中内容为标题
                     name_match = re.findall(r'\[(.+?)]', title)
@@ -59,8 +57,27 @@ class MetaAnime(MetaBase):
                             break
                 # 拆份中英文名称
                 if name:
+                    _split_flag = True
+                    # 按 / 拆分中英文：直接取最后一段会把 "中文 / 英文" 里的中文名丢掉，
+                    # 必须判断哪一段含中文（对齐 MoviePilot v3 的处理）
+                    if name.find("/") != -1:
+                        names = name.split("/")
+                        if StringUtils.is_chinese(names[0]):
+                            self.cn_name = names[0]
+                            if len(names) > 1:
+                                self.en_name = names[1]
+                            _split_flag = False
+                        elif StringUtils.is_chinese(names[-1]):
+                            self.cn_name = names[-1]
+                            if len(names) > 1:
+                                self.en_name = names[0]
+                            _split_flag = False
+                        else:
+                            name = names[-1]
+                    if not _split_flag:
+                        name = None
                     lastword_type = ""
-                    for word in name.split():
+                    for word in (name or "").split():
                         if not word:
                             continue
                         if word.endswith(']'):

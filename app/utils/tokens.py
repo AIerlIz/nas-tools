@@ -8,13 +8,13 @@ class Tokens:
     _index = 0
     _tokens = []
 
-    def __init__(self, text):
+    def __init__(self, text, split_chars=None):
         self._text = text
         self._tokens = []
-        self.load_text(text)
+        self.load_text(text, split_chars or SPLIT_CHARS)
 
-    def load_text(self, text):
-        splited_text = re.split(r'%s' % SPLIT_CHARS, text)
+    def load_text(self, text, split_chars=None):
+        splited_text = re.split(r'%s' % (split_chars or SPLIT_CHARS), text)
         for sub_text in splited_text:
             if sub_text:
                 self._tokens.append(sub_text)
