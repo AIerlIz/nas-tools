@@ -12,11 +12,10 @@ except ImportError:
     from bencode import encode as bencode, decode as bdecode
 
 from app.downloader import Downloader
-from app.downloader.client.qbittorrent import QB_PAUSED_UPLOAD_STATES
 from app.media.meta import MetaInfo
 from app.plugins.modules._base import _IPluginModule
 from app.utils import Torrent
-from app.utils.types import DownloaderType
+from app.utils.types import DownloaderType, QB_PAUSED_UPLOAD_STATES
 from config import Config
 
 

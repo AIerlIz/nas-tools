@@ -2,19 +2,14 @@ import json
 import os
 import re
 import time
-from collections.abc import Mapping
 from datetime import datetime
+from typing import Any
 
 import log
 import qbittorrentapi
 from app.downloader.client._base import _IDownloadClient
 from app.utils import ExceptionUtils, StringUtils
-from app.utils.types import DownloaderType
-
-# qBittorrent v5.0（WebAPI 2.11.0）起把暂停状态由 pausedDL/pausedUP 改名为
-# stoppedDL/stoppedUP，这里新旧命名一并收录，以同时兼容不同版本的下载器
-QB_PAUSED_DOWNLOAD_STATES = ("pausedDL", "stoppedDL")
-QB_PAUSED_UPLOAD_STATES = ("pausedUP", "stoppedUP")
+from app.utils.types import DownloaderType, QB_PAUSED_DOWNLOAD_STATES
 
 
 class Qbittorrent(_IDownloadClient):
@@ -89,10 +84,13 @@ class Qbittorrent(_IDownloadClient):
                 qbt.auth_log_in()
                 self.ver = qbt.app_version()
             except qbittorrentapi.LoginFailed as e:
-                log.error(f"【{self.client_name}】{self.name} 登录出错：{str(e)}")
+                log.error(f"【{self.client_name}】{self.name} 登录失败：qBittorrent API 未返回 Ok.，请检查用户名、密码及 WebUI 地址和端口")
+                ExceptionUtils.exception_traceback(e)
+                return None
             return qbt
         except Exception as err:
-            log.error(f"【{self.client_name}】{self.name} 连接出错：{str(err)}")
+            log.error(f"【{self.client_name}】{self.name} 连接出错：{type(err).__name__}: {str(err)}")
+            ExceptionUtils.exception_traceback(err)
             return None
 
     def get_status(self):
@@ -190,9 +188,9 @@ class Qbittorrent(_IDownloadClient):
         if not self.qbc:
             return [], True
         try:
-            # qbittorrent-api 新版把 status_filter 当作单个过滤值处理（内部做集合判断），
-            # 直接传列表会抛 TypeError，这里统一归一化成字符串；与旧版库的
-            # _list2string(status, "|") 行为保持一致
+            # 本地补丁（上游无）：qbittorrent-api 新版把 status_filter 当作单个过滤值
+            # 处理（内部做集合判断），直接传列表会抛 TypeError，这里统一归一化成字符串；
+            # 与旧版库 _list2string(status, "|") 的行为保持一致
             if isinstance(status, (list, tuple, set)):
                 status = "|".join(str(item) for item in status if item is not None) or None
             torrents = self.qbc.torrents_info(torrent_hashes=ids,
@@ -222,7 +220,7 @@ class Qbittorrent(_IDownloadClient):
         """
         if not self.qbc:
             return None
-        torrents, error = self.get_torrents(status=["completed"], ids=ids, tag=tag)
+        torrents, error = self.get_torrents(status="completed", ids=ids, tag=tag)
         return None if error else torrents or []
 
     def get_downloading_torrents(self, ids=None, tag=None):
@@ -233,7 +231,7 @@ class Qbittorrent(_IDownloadClient):
         if not self.qbc:
             return None
         torrents, error = self.get_torrents(ids=ids,
-                                            status=["downloading"],
+                                            status="downloading",
                                             tag=tag)
         return None if error else torrents or []
 
@@ -241,13 +239,15 @@ class Qbittorrent(_IDownloadClient):
         """
         移除标签
 
-        这里用的是 deleteTags（删除标签定义本身，会同时作用于所有带该标签的种子），
-        而不是 removeTags（仅把标签从指定种子摘掉）——调用方传入的是添加下载时生成的
-        随机临时标签，删除定义才能把它清理干净；实测 removeTags 会把标签定义留在
-        下载器的标签列表里，长期运行会不断累积。
+        本地补丁（上游为 remove_torrents_tag(ids, tag)）：这里用的是 deleteTags
+        （删除标签定义本身，会同时作用于所有带该标签的种子），而不是 removeTags
+        （仅把标签从指定种子摘掉）——调用方传入的是添加下载时生成的随机临时标签，
+        删除定义才能把它清理干净；实测 removeTags 会把标签定义留在下载器的标签
+        列表里，长期运行会不断累积。
 
-        注意 torrent_hashes 并非 deleteTags 接受的参数，传了会被 qbittorrent-api
-        静默忽略（不报错但也不生效），因此本方法不需要种子列表。
+        注意 torrent_hashes 并非 deleteTags 接受的参数（已核对 qbittorrent-api
+        2026.6.0 的签名：delete_tags(tags=None, **kwargs) 没有该形参），传了会被
+        **kwargs 吞掉而不生效，因此本方法不需要种子列表。
         :param tag: 标签内容
         """
         try:
@@ -413,65 +413,40 @@ class Qbittorrent(_IDownloadClient):
                                                               status=status)
             if torrent_id is not None:
                 break
-        # 无论是否找到种子都要清理临时标签：重试耗尽仍找不到时不清理的话，
-        # 标签定义会一直残留在下载器的标签列表里
+        # 本地补丁（上游只在匹配到种子时才清理）：无论是否找到种子都要清理临时标签，
+        # 否则重试耗尽仍找不到时，标签定义会一直残留在下载器的标签列表里
         if tag:
             self.remove_torrents_tag(tag)
         return torrent_id
 
-    @staticmethod
-    def __get_add_response_value(response, key):
-        """
-        从添加种子的返回体中读取字段，兼容普通字典与带 get 方法的映射对象
-        """
-        if isinstance(response, Mapping):
-            return response.get(key)
-        getter = getattr(response, "get", None)
-        if callable(getter):
-            try:
-                return getter(key)
-            except TypeError:
-                pass
-        return getattr(response, key, None)
-
-    def __parse_add_torrent_response(self, response):
-        """
-        解析添加种子的返回结果
-
-        qBittorrent 5.2.0（WebAPI 2.14.0）起 /torrents/add 的返回体由纯文本 "Ok."
-        改为 JSON：{"added_torrent_ids": [...], "failure_count": 0,
-        "pending_count": 0, "success_count": 1}
-        旧版 qbittorrent-api 不会解析该 JSON，会把原始响应字符串直接返回，因此这里需要
-        同时兼容纯文本、JSON 字符串和已解析的映射对象三种形态
-        """
+    def __parse_add_torrent_response(self, response: Any) -> bool:
         if not response:
             return False
-        # 旧版为纯文本 "Ok." / "Fails."
         if isinstance(response, str):
-            if "Ok" in response:
-                return True
-            # 新版服务端搭配旧版客户端库时，字符串内容即为 JSON
             try:
                 response = json.loads(response)
-            except (TypeError, ValueError):
-                return False
-            if not isinstance(response, Mapping):
-                return False
-        # 优先以实际入队的种子ID为准，其次看成功与待处理计数
-        added_torrent_ids = self.__get_add_response_value(response, "added_torrent_ids") or []
-        if not isinstance(added_torrent_ids, (list, tuple, set)):
+            except json.JSONDecodeError:
+                return "Ok" in response
+
+        if not hasattr(response, "get"):
+            return False
+
+        success_count = response.get("success_count") or 0
+        pending_count = response.get("pending_count") or 0
+        added_torrent_ids = response.get("added_torrent_ids") or []
+
+        if not isinstance(added_torrent_ids, list):
             try:
                 added_torrent_ids = list(added_torrent_ids)
             except TypeError:
                 added_torrent_ids = [added_torrent_ids]
-        if any(added_torrent_ids):
+
+        added_torrent_ids = [str(torrent_id) for torrent_id in added_torrent_ids if torrent_id]
+        if added_torrent_ids:
             return True
-        success_count = self.__get_add_response_value(response, "success_count") or 0
-        pending_count = self.__get_add_response_value(response, "pending_count") or 0
         if success_count or pending_count:
             return True
-        # 兜底：保留原有对纯文本 "Ok" 的判断
-        return "Ok" in str(response)
+        return False
 
     def add_torrent(self,
                     content,
@@ -579,6 +554,8 @@ class Qbittorrent(_IDownloadClient):
         if not self.qbc:
             return False
         try:
+            if self.__uses_start_stop_endpoints():
+                return self.qbc.torrents_start(torrent_hashes=ids)
             return self.qbc.torrents_resume(torrent_hashes=ids)
         except Exception as err:
             log.error(f"【{self.client_name}】{self.name} 开始下载出错：{str(err)}")
@@ -588,10 +565,16 @@ class Qbittorrent(_IDownloadClient):
         if not self.qbc:
             return False
         try:
+            if self.__uses_start_stop_endpoints():
+                return self.qbc.torrents_stop(torrent_hashes=ids)
             return self.qbc.torrents_pause(torrent_hashes=ids)
         except Exception as err:
             log.error(f"【{self.client_name}】{self.name} 停止下载出错：{str(err)}")
             return False
+
+    def __uses_start_stop_endpoints(self):
+        version_match = re.search(r"\d+", str(self.ver))
+        return bool(version_match and int(version_match.group()) >= 5)
 
     def delete_torrents(self, delete_file, ids):
         if not self.qbc:

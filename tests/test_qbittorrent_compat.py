@@ -31,10 +31,10 @@ import qbittorrentapi  # noqa: E402
 import web.action as web_action  # noqa: E402
 from web.action import WebAction  # noqa: E402
 
-from app.downloader.client.qbittorrent import (  # noqa: E402
+from app.downloader.client.qbittorrent import Qbittorrent  # noqa: E402
+from app.utils.types import (  # noqa: E402
     QB_PAUSED_DOWNLOAD_STATES,
     QB_PAUSED_UPLOAD_STATES,
-    Qbittorrent,
 )
 from app.plugins.modules.iyuuautoseed import IYUUAutoSeed  # noqa: E402
 from app.plugins.modules.torrenttransfer import TorrentTransfer  # noqa: E402
